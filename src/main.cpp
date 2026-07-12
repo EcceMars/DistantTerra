@@ -9,6 +9,7 @@
 #include "code/ecs/components/WorldComponent.hpp"
 #include "code/ecs/components/behaviors/BehaviorTree.hpp"
 #include "code/ecs/components/behaviors/ControllerBehavior.hpp"
+#include "code/ecs/components/behaviors/WanderBehavior.hpp"
 
 #define ASSETSPATH "src/assets/"
 
@@ -64,6 +65,30 @@ void DrawWorld(Texture2D& atlas, World& world) {
     }
 }
 
+void AttachPhysical(Entity& e, World* world, Texture2D* atlas, Rectangle spriteRect,
+                     float width, float height, Vector2 position) {
+    e.AddComponent<MovementComponent>()->position = position;
+    e.AddComponent<VisualComponent>(atlas, spriteRect);
+    e.AddComponent<ColliderComponent>(world, width * RENDERSCALE, height * RENDERSCALE);
+}
+
+void BuildPlayer(Entity& player, World* world, Texture2D* atlas, Vector2 position) {
+    AttachPhysical(player, world, atlas, {0, 0, 32, 32}, PLAYERWIDTH, PLAYERHEIGHT, position);
+
+    auto controller = std::make_unique<SelectorNode>();
+    controller->AddChild(std::make_unique<ControllerBehavior>());
+    player.AddComponent<BehaviorComponent>()->SetRoot(std::move(controller));
+    player.AddComponent<WorldComponent>(world, 2);
+}
+
+void BuildSlime(Entity& slime, World* world, Texture2D* atlas, Vector2 position) {
+    AttachPhysical(slime, world, atlas, {0, 0, SLIME_SPRITE_W, SLIME_SPRITE_H}, SLIMEWIDTH, SLIMEHEIGHT, position);
+
+    auto behavior = std::make_unique<SelectorNode>();
+    behavior->AddChild(std::make_unique<WanderBehavior>());
+    slime.AddComponent<BehaviorComponent>()->SetRoot(std::move(behavior));
+}
+
 int main() {
     InitWindow(GLOBALS::SCREENWIDTH, GLOBALS::SCREENHEIGHT, "Distant: Terra");
     SetTargetFPS(60);
@@ -77,6 +102,9 @@ int main() {
     Texture2D ACTORATLAS = LoadTexture(ASSETSPATH "images/actors/iphrit.png");
     SetTextureFilter(ACTORATLAS, TEXTURE_FILTER_POINT);
 
+    Texture2D SLIMEATLAS = LoadTexture(ASSETSPATH "images/actors/green_slime.png");
+    SetTextureFilter(SLIMEATLAS, TEXTURE_FILTER_POINT);
+
     World world;
     int surfacerow = WORLDTILEHIGH * 0.5;
     GenerateTestTerrain(world, surfacerow);
@@ -84,11 +112,10 @@ int main() {
     auto controllerbehavior = std::make_unique<SelectorNode>();
     controllerbehavior->AddChild(std::make_unique<ControllerBehavior>());
     Entity player;
-    player.AddComponent<BehaviorComponent>()->SetRoot(std::move(controllerbehavior));
-    player.AddComponent<MovementComponent>()->position = {  300, 200    };
-    player.AddComponent<ColliderComponent>(&world, PLAYERWIDTH * RENDERSCALE, PLAYERHEIGHT * RENDERSCALE);
-    player.AddComponent<VisualComponent>(&ACTORATLAS, Rectangle{0, 0, 32, 32});
-    player.AddComponent<WorldComponent>(&world, 2);
+    Entity g_slime;
+    
+    BuildPlayer(player, &world, &ACTORATLAS, {800, 200});
+    BuildSlime(g_slime, &world, &SLIMEATLAS, {310, 200});
 
     Camera2D camera{};
     camera.target = player.GetComponent<MovementComponent>()->position;
@@ -96,8 +123,12 @@ int main() {
     camera.zoom = 1.0f;
 
     while(WindowShouldClose() == false) {
-        player.Update(GetFrameTime());
+        float delta = GetFrameTime();
+        player.Update(delta);
+        g_slime.Update(delta);
         camera.target = player.GetComponent<MovementComponent>()->position;
+
+        if (IsKeyPressed(KEY_F1)) DEBUGDRAWCOLLIDERS = !DEBUGDRAWCOLLIDERS;
 
         BeginDrawing();
         ClearBackground({20, 20, 30, 255});
@@ -105,6 +136,7 @@ int main() {
         BeginMode2D(camera);
         DrawWorld(TERRAINATLAS, world);
         player.Draw();
+        g_slime.Draw();
         EndMode2D();
 
         DrawText("Welcome!", 20, 20, 20, RAYWHITE);
@@ -113,6 +145,7 @@ int main() {
     }
 
     UnloadTexture(ACTORATLAS);
+    UnloadTexture(SLIMEATLAS);
     UnloadTexture(TERRAINATLAS);
 
     UnloadImage(__icon__);

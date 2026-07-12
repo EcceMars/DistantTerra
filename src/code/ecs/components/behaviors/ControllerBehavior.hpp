@@ -20,11 +20,11 @@ class ControllerBehavior : public BehaviorNode {
             bool right = IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT);
 
             if (left && !right) {
-                movement->velocity.x = - MOVESPEED;
+                movement->velocity.x = - MOVESPEED * movement->SpeedMultiplier();
                 if (visual) visual->SetFacingRight(false);
             }
             else if (right && !left) {
-                movement->velocity.x = MOVESPEED;
+                movement->velocity.x = MOVESPEED * movement->SpeedMultiplier();
                 if (visual) visual->SetFacingRight(true);
             }
 

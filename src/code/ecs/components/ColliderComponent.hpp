@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "raylib.h"
 #include "BaseComponent.hpp"
 #include "MovementComponent.hpp"
 #include "../../world/World.hpp"
@@ -23,10 +24,16 @@ class ColliderComponent : public BaseComponent {
 
             constexpr int cell = TILESIZE * RENDERSCALE;
 
-            int tileminx = FloorDiv((int)movement->position.x, cell);
-            int tilemaxx = FloorDiv((int)(movement->position.x + width), cell);
-            int tileminy = FloorDiv((int)movement->position.y, cell);
-            int tilemaxy = FloorDiv((int)(movement->position.y + height), cell);
+
+            // TASK!! bottom should always have a -4 pixels, so to have any sprite sit slightly inside the tile under it.
+            // Would a set getter suffice?
+            float left, top, right, bottom;
+            GetBounds(left, top, right, bottom);
+
+            int tileminx = FloorDiv((int)left, cell);
+            int tilemaxx = FloorDiv((int)right, cell);
+            int tileminy = FloorDiv((int)top, cell);
+            int tilemaxy = FloorDiv((int)bottom, cell);
 
             for (int ty = tileminy; ty <= tilemaxy; ty++) for (int tx = tileminx; tx <= tilemaxx; tx++) {
                 Tile& tile = world->GetTile(tx, ty);
@@ -36,10 +43,30 @@ class ColliderComponent : public BaseComponent {
             }
         }
 
+        void Draw() override {
+            if (!movement || !DEBUGDRAWCOLLIDERS) return;
+
+            float left, top, right, bottom;
+            GetBounds(left, top, right, bottom);
+
+            Rectangle box{ left, top, right - left, bottom - top };
+            DrawRectangleRec(box, Fade(GREEN, 0.25f));
+            DrawRectangleLinesEx(box, 1.0f, GREEN);
+        }
+
     private:
+        // Anchored bottom-center: position.x sits at the horizontal midpoint,
+        // position.y sits at the ground-contact line (the sprite's lowest pixel).
+        void GetBounds(float& left, float& top, float& right, float& bottom) const {
+            left = movement->position.x - width * 0.5f;
+            right = movement->position.x + width * 0.5f;
+            bottom = movement->position.y;
+            top = movement->position.y - height;
+        }
+
         void ResolveAgainsTile(int tx, int ty, int cell) {
-            float left = movement->position.x, top = movement->position.y;
-            float right = movement->position.x + width, bottom = movement->position.y + height;
+            float left, top, right, bottom;
+            GetBounds(left, top, right, bottom);
 
             float tileleft = tx * cell, tiletop = ty * cell;
             float tileright = tileleft + cell, tilebottom = tiletop + cell;
@@ -51,7 +78,7 @@ class ColliderComponent : public BaseComponent {
 
             if (overlapx < overlapy) {
                 movement->position.x += (left < tileleft) ? -overlapx : overlapy;
-                movement->velocity.y = 0.0f;
+                movement->velocity.x = 0.0f;
             } else {
                 if (top < tiletop) {
                     movement->position.y -= overlapy;
@@ -63,7 +90,7 @@ class ColliderComponent : public BaseComponent {
                 }
             }
         }
-    
+
         World* world;
         MovementComponent* movement = nullptr;
         float width, height;

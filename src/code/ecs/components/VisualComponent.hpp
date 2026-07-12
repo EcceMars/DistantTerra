@@ -24,11 +24,14 @@ class VisualComponent : public BaseComponent {
             Rectangle src = src_rect;
             src.y = row * src_rect.height;
 
+            float dest_width = src_rect.width * RENDERSCALE;
+            float dest_height = src_rect.height * RENDERSCALE;
+
             Rectangle dest = {
-                movement->position.x,
-                movement->position.y,
-                src_rect.width * RENDERSCALE,
-                src_rect.height * RENDERSCALE
+                movement->position.x - dest_width * 0.5f,
+                movement->position.y - dest_height,
+                dest_width,
+                dest_height
             };
             DrawTexturePro(*texture, src, dest, {0, 0}, 0.0f, WHITE);
         }

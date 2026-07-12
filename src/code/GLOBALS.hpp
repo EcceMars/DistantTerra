@@ -16,6 +16,13 @@ namespace GLOBALS {
     constexpr float MOVESPEED = 200.0f;
     constexpr float FRICTION = 800.0f;
 
-    constexpr float PLAYERWIDTH = 24;
+    constexpr float PLAYERWIDTH = 18;
     constexpr float PLAYERHEIGHT = 24;
+
+    constexpr float SLIME_SPRITE_W = 16;
+    constexpr float SLIME_SPRITE_H = 16;
+    constexpr float SLIMEWIDTH = 12;
+    constexpr float SLIMEHEIGHT = 8;
+
+    inline bool DEBUGDRAWCOLLIDERS = true;
 }

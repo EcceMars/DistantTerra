@@ -56,6 +56,9 @@ ifeq ($(PLATFORM),PLATFORM_DESKTOP)
         RAYLIB_PREFIX ?= ..
         RAYLIB_PATH    = $(realpath $(RAYLIB_PREFIX))
     endif
+    ifeq ($(PLATFORM_OS),OSX)
+        RAYLIB_PATH := $(shell brew --prefix raylib 2>/dev/null)
+    endif
 endif
 
 ifeq ($(PLATFORM),PLATFORM_RPI)
@@ -95,10 +98,8 @@ ifeq ($(PLATFORM),PLATFORM_RPI)
         CC = $(RPI_TOOLCHAIN)/bin/arm-linux-gnueabihf-gcc
     endif
 endif
+
 ifeq ($(PLATFORM),PLATFORM_WEB)
-    
-    
-    
     CC = emcc
 endif
 
@@ -159,13 +160,13 @@ ifeq ($(PLATFORM),PLATFORM_RPI)
 endif
 ifeq ($(PLATFORM),PLATFORM_DESKTOP)
     ifeq ($(PLATFORM_OS),BSD)
-        
         INCLUDE_PATHS += -I/usr/local/include
     endif
     ifeq ($(PLATFORM_OS),LINUX)
-        
-        
         INCLUDE_PATHS = -I$(RAYLIB_H_INSTALL_PATH) -isystem. -isystem$(RAYLIB_PATH)/src -isystem$(RAYLIB_PATH)/release/include -isystem$(RAYLIB_PATH)/src/external
+    endif
+    ifeq ($(PLATFORM_OS),OSX)
+        INCLUDE_PATHS += -I$(RAYLIB_PATH)/include
     endif
 endif
 
@@ -181,15 +182,16 @@ ifneq ($(wildcard /opt/homebrew/lib/.*),)
 endif
 ifeq ($(PLATFORM),PLATFORM_DESKTOP)
     ifeq ($(PLATFORM_OS),BSD)
-        
         LDFLAGS += -L. -Lsrc -L/usr/local/lib
     endif
     ifeq ($(PLATFORM_OS),LINUX)
-        
-        
         LDFLAGS = -L. -L$(RAYLIB_INSTALL_PATH) -L$(RAYLIB_RELEASE_PATH)
     endif
+    ifeq ($(PLATFORM_OS),OSX)
+        LDFLAGS += -L$(RAYLIB_PATH)/lib
+    endif
 endif
+
 ifeq ($(PLATFORM),PLATFORM_RPI)
     LDFLAGS += -L/opt/vc/lib
 endif
@@ -224,7 +226,7 @@ ifeq ($(PLATFORM),PLATFORM_DESKTOP)
     ifeq ($(PLATFORM_OS),OSX)
         
         
-        LDLIBS = -lraylib -framework OpenGL -framework OpenAL -framework Cocoa -framework IOKit
+        LDLIBS = -lraylib -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo
     endif
     ifeq ($(PLATFORM_OS),BSD)
         
