@@ -36,6 +36,7 @@ class VisualComponent : public BaseComponent {
                 dest_width,
                 dest_height
             };
+
             DrawTexturePro(*texture, src, dest, {0, 0}, 0.0f, WHITE);
         }
 

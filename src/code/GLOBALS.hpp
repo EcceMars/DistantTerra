@@ -13,7 +13,7 @@ namespace GLOBALS {
 
     constexpr float DELTALIMIT = 1.0f / 60.0f;
 
-    constexpr float SPRITEUNIVERSALYOFFSET = -18.0f;
+    constexpr float SPRITEUNIVERSALYOFFSET = 4.0f;
 
     constexpr float GRAVITYBASE = 900.0f;
     constexpr float JUMPVELOCITY = -420.0f;
