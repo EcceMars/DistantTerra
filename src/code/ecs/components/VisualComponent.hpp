@@ -18,6 +18,9 @@ class VisualComponent : public BaseComponent {
             row = value ? 0 : 1;
         }
 
+        void SetGroundOffset(float offset = SPRITEUNIVERSALYOFFSET) {    groundoffset = offset;  }
+        float GetGroundOffset() const { return groundoffset;    }
+
         void Draw() override {
             if (!movement) return;
 
@@ -41,4 +44,5 @@ class VisualComponent : public BaseComponent {
         Rectangle src_rect;
         MovementComponent* movement = nullptr;
         int row = 0;
+        float groundoffset = 0.0f;
 };

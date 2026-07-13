@@ -77,7 +77,7 @@ class ColliderComponent : public BaseComponent {
             if (overlapx <= 0 || overlapy <= 0) return;
 
             if (overlapx < overlapy) {
-                movement->position.x += (left < tileleft) ? -overlapx : overlapy;
+                movement->position.x += (left < tileleft) ? -overlapx : overlapx;
                 movement->velocity.x = 0.0f;
             } else {
                 if (top < tiletop) {

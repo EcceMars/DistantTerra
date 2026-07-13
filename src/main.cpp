@@ -68,7 +68,8 @@ void DrawWorld(Texture2D& atlas, World& world) {
 void AttachPhysical(Entity& e, World* world, Texture2D* atlas, Rectangle spriteRect,
                      float width, float height, Vector2 position) {
     e.AddComponent<MovementComponent>()->position = position;
-    e.AddComponent<VisualComponent>(atlas, spriteRect);
+    e.AddComponent<VisualComponent>(atlas, spriteRect)->SetGroundOffset();
+    std::cout << e.GetComponent<VisualComponent>()->GetGroundOffset() << std::endl;
     e.AddComponent<ColliderComponent>(world, width * RENDERSCALE, height * RENDERSCALE);
 }
 
@@ -89,12 +90,51 @@ void BuildSlime(Entity& slime, World* world, Texture2D* atlas, Vector2 position)
     slime.AddComponent<BehaviorComponent>()->SetRoot(std::move(behavior));
 }
 
-int main() {
-    InitWindow(GLOBALS::SCREENWIDTH, GLOBALS::SCREENHEIGHT, "Distant: Terra");
+void SetupWindow(Image __icon__) {
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    InitWindow(SCREENWIDTH, SCREENHEIGHT, "Distant: Terra");
     SetTargetFPS(60);
-    Image __icon__ = LoadImage(ASSETSPATH "images/icons/__icon__.png");
 
     SetWindowIcon(__icon__);
+}
+
+struct TileBrush {
+    TileType type;
+    TileVariant variant;
+};
+
+constexpr TileBrush TILEBRUSHES[] = {
+    { TileType::GRASS, TileVariant::SURFACE },
+    { TileType::SOIL,  TileVariant::BURIED },
+    { TileType::STONE, TileVariant::BURIED },
+};
+constexpr int TILEBRUSHCOUNT = sizeof(TILEBRUSHES) / sizeof(TileBrush);
+
+void HandleTileEditing(World& world, Camera2D& camera, int& brushindex) {
+    for (int i = 0; i < TILEBRUSHCOUNT && i < 9; i++) {
+        if (IsKeyPressed(KEY_ONE + i)) brushindex = i;
+    }
+
+    bool placing = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+    bool deleting = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    if (!placing && !deleting) return;
+
+    Vector2 mouseworld = GetScreenToWorld2D(GetMousePosition(), camera);
+    constexpr int cell = TILESIZE * RENDERSCALE;
+    int tilex = FloorDiv((int)mouseworld.x, cell);
+    int tiley = FloorDiv((int)mouseworld.y, cell);
+
+    Tile& tile = world.GetTile(tilex, tiley);
+    if (deleting) {
+        tile = { TileType::AIR, TileVariant::SURFACE };
+    } else {
+        tile = { TILEBRUSHES[brushindex].type, TILEBRUSHES[brushindex].variant };
+    }
+}
+
+int main() {
+    Image __icon__ = LoadImage(ASSETSPATH "images/icons/__icon__.png");
+    SetupWindow(__icon__);
 
     Texture2D TERRAINATLAS = LoadTexture(ASSETSPATH "images/terrain/terrain.png");
     SetTextureFilter(TERRAINATLAS, TEXTURE_FILTER_POINT);
@@ -122,16 +162,23 @@ int main() {
     camera.offset = { SCREENWIDTH / 2.0f, SCREENHEIGHT / 2.0f };
     camera.zoom = 1.0f;
 
+    int brushindex = 0;
+
     while(WindowShouldClose() == false) {
         float delta = GetFrameTime();
+        if (delta > DELTALIMIT) delta = DELTALIMIT;
+
         player.Update(delta);
         g_slime.Update(delta);
         camera.target = player.GetComponent<MovementComponent>()->position;
+        camera.offset = { GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
+
+        HandleTileEditing(world, camera, brushindex);
 
         if (IsKeyPressed(KEY_F1)) DEBUGDRAWCOLLIDERS = !DEBUGDRAWCOLLIDERS;
 
         BeginDrawing();
-        ClearBackground({20, 20, 30, 255});
+        ClearBackground({SKYBLUE});
 
         BeginMode2D(camera);
         DrawWorld(TERRAINATLAS, world);
@@ -139,7 +186,7 @@ int main() {
         g_slime.Draw();
         EndMode2D();
 
-        DrawText("Welcome!", 20, 20, 20, RAYWHITE);
+        DrawText(TextFormat("Brush: %d/%d | LMB delete, RMB place | F1 to debug collision", brushindex + 1, TILEBRUSHCOUNT), 20, 20, 18, RAYWHITE);
         DrawFPS(10, 50);
         EndDrawing();
     }
