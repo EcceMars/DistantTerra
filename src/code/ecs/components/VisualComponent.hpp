@@ -32,7 +32,7 @@ class VisualComponent : public BaseComponent {
 
             Rectangle dest = {
                 movement->position.x - dest_width * 0.5f,
-                movement->position.y - dest_height,
+                movement->position.y - dest_height + GetGroundOffset(),
                 dest_width,
                 dest_height
             };
