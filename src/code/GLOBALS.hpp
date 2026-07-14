@@ -12,6 +12,7 @@ namespace GLOBALS {
     constexpr int WORLDTILEHIGH = SCREENHEIGHT / (TILESIZE * RENDERSCALE);
 
     constexpr float DELTALIMIT = 1.0f / 60.0f;
+    constexpr float ANIMATIONFRAMEDURATION = 0.1f;
 
     constexpr float SPRITEUNIVERSALYOFFSET = 4.0f;
 

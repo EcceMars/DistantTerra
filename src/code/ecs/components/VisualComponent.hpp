@@ -4,6 +4,7 @@
 
 #include "raylib.h"
 #include "BaseComponent.hpp"
+#include "AnimationComponent.hpp"
 #include "MovementComponent.hpp"
 
 class VisualComponent : public BaseComponent {
@@ -11,6 +12,7 @@ class VisualComponent : public BaseComponent {
         VisualComponent(Texture2D* texture, Rectangle src_rect) : texture(texture), src_rect(src_rect) {}
 
         void Init() override {
+            animation = owner->GetComponent<AnimationComponent>();
             movement = owner->GetComponent<MovementComponent>();
         }
 
@@ -25,7 +27,13 @@ class VisualComponent : public BaseComponent {
             if (!movement) return;
 
             Rectangle src = src_rect;
-            src.y = row * src_rect.height;
+            if (animation) {
+                AnimationFrame f = animation->CurrentFrame();
+                src.x = f.col * src_rect.width;
+                src.y = f.row * src_rect.height;
+            } else {
+                src.y = row * src_rect.height;
+            }
 
             float dest_width = src_rect.width * RENDERSCALE;
             float dest_height = src_rect.height * RENDERSCALE;
@@ -43,6 +51,7 @@ class VisualComponent : public BaseComponent {
     private:
         Texture2D* texture;
         Rectangle src_rect;
+        AnimationComponent* animation = nullptr;
         MovementComponent* movement = nullptr;
         int row = 0;
         float groundoffset = 0.0f;

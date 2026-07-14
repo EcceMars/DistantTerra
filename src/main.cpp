@@ -1,202 +1,61 @@
-#include "raylib.h"
-#include "code/GLOBALS.hpp"
-#include "code/world/Tile.hpp"
-#include "code/world/World.hpp"
-#include "code/ecs/Entity.hpp"
-#include "code/ecs/components/BehaviorComponent.hpp"
-#include "code/ecs/components/MovementComponent.hpp"
-#include "code/ecs/components/VisualComponent.hpp"
-#include "code/ecs/components/WorldComponent.hpp"
-#include "code/ecs/components/behaviors/BehaviorTree.hpp"
-#include "code/ecs/components/behaviors/ControllerBehavior.hpp"
-#include "code/ecs/components/behaviors/WanderBehavior.hpp"
+#include <cassert>
+#include <cmath>
+#include <iostream>
 
-#define ASSETSPATH "src/assets/"
-
-Rectangle GetTileSourceRect(int col, int row) {
-    return Rectangle {
-        (float)(col * TILESIZE),
-        (float)(row * TILESIZE),
-        (float)TILESIZE,
-        (float)TILESIZE
-    };
-}
-
-void GenerateTestTerrain(World& world, int surfaceRow) {
-    int stoneRow = surfaceRow + 6;
-
-    for (int x = 0; x < WORLDTILEWIDE; x++) {
-        for (int y = surfaceRow; y < WORLDTILEHIGH; y++) {
-            Tile& tile = world.GetTile(x, y);
-            if (y == surfaceRow) {
-                tile = { TileType::GRASS, TileVariant::SURFACE };
-            } else if (y < stoneRow) {
-                tile = { TileType::SOIL, TileVariant::BURIED };
-            } else {
-                tile = { TileType::STONE, TileVariant::BURIED };
-            }
-        }
-    }
-}
-
-void DrawTile(Texture2D& atlas, const Tile& tile, int gridx, int gridy) {
-    if (tile.type == TileType::AIR) return;
-
-    Rectangle src = GetTileSourceRect(GetTileColumn(tile.type), (int)tile.variant);
-    Rectangle dest = {
-        (float)(gridx * TILESIZE * RENDERSCALE),
-        (float)(gridy * TILESIZE * RENDERSCALE),
-        (float)(TILESIZE * RENDERSCALE),
-        (float)(TILESIZE * RENDERSCALE)
-    };
-
-    DrawTexturePro(atlas, src, dest, {0, 0}, 0.0f, WHITE);
-}
-
-void DrawWorld(Texture2D& atlas, World& world) {
-    for (auto& [coord, chunk] : world.GetChunks()) {
-        if (!chunk.active) continue;
-
-        for (int localy = 0; localy < Chunk::SIZE; localy++) for (int localx = 0; localx < Chunk::SIZE; localx++) {
-            int worldx = coord.x * Chunk::SIZE + localx;
-            int worldy = coord.y * Chunk::SIZE + localy;
-            DrawTile(atlas, chunk.GetTile(localx, localy), worldx, worldy);
-        }
-    }
-}
-
-void AttachPhysical(Entity& e, World* world, Texture2D* atlas, Rectangle spriteRect,
-                     float width, float height, Vector2 position) {
-    e.AddComponent<MovementComponent>()->position = position;
-    e.AddComponent<VisualComponent>(atlas, spriteRect)->SetGroundOffset();
-    std::cout << e.GetComponent<VisualComponent>()->GetGroundOffset() << std::endl;
-    e.AddComponent<ColliderComponent>(world, width * RENDERSCALE, height * RENDERSCALE);
-}
-
-void BuildPlayer(Entity& player, World* world, Texture2D* atlas, Vector2 position) {
-    AttachPhysical(player, world, atlas, {0, 0, 32, 32}, PLAYERWIDTH, PLAYERHEIGHT, position);
-
-    auto controller = std::make_unique<SelectorNode>();
-    controller->AddChild(std::make_unique<ControllerBehavior>());
-    player.AddComponent<BehaviorComponent>()->SetRoot(std::move(controller));
-    player.AddComponent<WorldComponent>(world, 2);
-}
-
-void BuildSlime(Entity& slime, World* world, Texture2D* atlas, Vector2 position) {
-    AttachPhysical(slime, world, atlas, {0, 0, SLIME_SPRITE_W, SLIME_SPRITE_H}, SLIMEWIDTH, SLIMEHEIGHT, position);
-
-    auto behavior = std::make_unique<SelectorNode>();
-    behavior->AddChild(std::make_unique<WanderBehavior>());
-    slime.AddComponent<BehaviorComponent>()->SetRoot(std::move(behavior));
-}
-
-void SetupWindow(Image __icon__) {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(SCREENWIDTH, SCREENHEIGHT, "Distant: Terra");
-    SetTargetFPS(60);
-
-    SetWindowIcon(__icon__);
-}
-
-struct TileBrush {
-    TileType type;
-    TileVariant variant;
-};
-
-constexpr TileBrush TILEBRUSHES[] = {
-    { TileType::GRASS, TileVariant::SURFACE },
-    { TileType::SOIL,  TileVariant::BURIED },
-    { TileType::STONE, TileVariant::BURIED },
-};
-constexpr int TILEBRUSHCOUNT = sizeof(TILEBRUSHES) / sizeof(TileBrush);
-
-void HandleTileEditing(World& world, Camera2D& camera, int& brushindex) {
-    for (int i = 0; i < TILEBRUSHCOUNT && i < 9; i++) {
-        if (IsKeyPressed(KEY_ONE + i)) brushindex = i;
-    }
-
-    bool placing = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
-    bool deleting = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-    if (!placing && !deleting) return;
-
-    Vector2 mouseworld = GetScreenToWorld2D(GetMousePosition(), camera);
-    constexpr int cell = TILESIZE * RENDERSCALE;
-    int tilex = FloorDiv((int)mouseworld.x, cell);
-    int tiley = FloorDiv((int)mouseworld.y, cell);
-
-    Tile& tile = world.GetTile(tilex, tiley);
-    if (deleting) {
-        tile = { TileType::AIR, TileVariant::SURFACE };
-    } else {
-        tile = { TILEBRUSHES[brushindex].type, TILEBRUSHES[brushindex].variant };
-    }
-}
+#include "code/ecs/registries/ComponentRegistry.hpp"
+#include "code/ecs/systems/SystemRegistry.hpp"
+#include "code/ecs/systems/MovementSystem.hpp"
 
 int main() {
-    Image __icon__ = LoadImage(ASSETSPATH "images/icons/__icon__.png");
-    SetupWindow(__icon__);
+    ComponentRegistry registry;
+    SystemRegistry<MovementSystem> systems;
 
-    Texture2D TERRAINATLAS = LoadTexture(ASSETSPATH "images/terrain/terrain.png");
-    SetTextureFilter(TERRAINATLAS, TEXTURE_FILTER_POINT);
+    // Entity with movement + an agility-boosted health component
+    EntityID hero = registry.CreateEntity();
+    registry.AddComponent<MovementComponent>(hero);
+    HealthComponent* heroHealth = registry.AddComponent<HealthComponent>(hero);
+    heroHealth->AddAttribute(Attributes::AGILITY, 21); // 1 + (21-1)*0.025 = 1.5
 
-    Texture2D ACTORATLAS = LoadTexture(ASSETSPATH "images/actors/iphrit.png");
-    SetTextureFilter(ACTORATLAS, TEXTURE_FILTER_POINT);
+    // Entity with movement only, no health at all
+    EntityID rock = registry.CreateEntity();
+    registry.AddComponent<MovementComponent>(rock);
 
-    Texture2D SLIMEATLAS = LoadTexture(ASSETSPATH "images/actors/green_slime.png");
-    SetTextureFilter(SLIMEATLAS, TEXTURE_FILTER_POINT);
+    constexpr float delta = 1.0f / 60.0f;
+    systems.UpdateAll(registry, delta);
 
-    World world;
-    int surfacerow = WORLDTILEHIGH * 0.5;
-    GenerateTestTerrain(world, surfacerow);
+    // Gravity should have integrated once for BOTH entities, independently
+    MovementComponent* heroMove = registry.GetComponent<MovementComponent>(hero);
+    MovementComponent* rockMove = registry.GetComponent<MovementComponent>(rock);
+    float expectedVelY = GRAVITYBASE * delta;
+    assert(std::abs(heroMove->velocity.y - expectedVelY) < 0.001f);
+    assert(std::abs(rockMove->velocity.y - expectedVelY) < 0.001f);
+    assert(std::abs(heroMove->position.y - expectedVelY * delta) < 0.001f);
 
-    auto controllerbehavior = std::make_unique<SelectorNode>();
-    controllerbehavior->AddChild(std::make_unique<ControllerBehavior>());
-    Entity player;
-    Entity g_slime;
-    
-    BuildPlayer(player, &world, &ACTORATLAS, {800, 200});
-    BuildSlime(g_slime, &world, &SLIMEATLAS, {310, 200});
+    // Cross-component lookup during a ForEach pass, mirroring _get_vitality(uid)
+    // inside _separate(): walk the pool, resolve each slot's live EntityID,
+    // then ask the registry for that same entity's HealthComponent.
+    int checked = 0;
+    registry.ForEach<MovementComponent>([&](uint32_t index, MovementComponent&) {
+        EntityID id = registry.EntityAt(index);
+        float mult = MovementSystem::GetSpeedMultiplier(registry, id);
+        if (id == hero) assert(std::abs(mult - 1.5f) < 0.001f);
+        if (id == rock) assert(std::abs(mult - 1.0f) < 0.001f); // no HealthComponent -> neutral
+        checked++;
+    });
+    assert(checked == 2);
 
-    Camera2D camera{};
-    camera.target = player.GetComponent<MovementComponent>()->position;
-    camera.offset = { SCREENWIDTH / 2.0f, SCREENHEIGHT / 2.0f };
-    camera.zoom = 1.0f;
+    // Generation safety: destroy hero, recreate on the same slot without health,
+    // and make sure the OLD handle can't pull the new entity's (lack of) data.
+    EntityID staleHero = hero;
+    registry.DestroyEntity(hero);
+    EntityID impostor = registry.CreateEntity();
+    registry.AddComponent<MovementComponent>(impostor);
+    assert(impostor.index == staleHero.index);       // slot reused
+    assert(impostor.generation != staleHero.generation);
 
-    int brushindex = 0;
+    float staleMult = MovementSystem::GetSpeedMultiplier(registry, staleHero);
+    assert(staleMult == 1.0f); // stale handle resolves to nothing, not to impostor's data
 
-    while(WindowShouldClose() == false) {
-        float delta = GetFrameTime();
-        if (delta > DELTALIMIT) delta = DELTALIMIT;
-
-        player.Update(delta);
-        g_slime.Update(delta);
-        camera.target = player.GetComponent<MovementComponent>()->position;
-        camera.offset = { GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
-
-        HandleTileEditing(world, camera, brushindex);
-
-        if (IsKeyPressed(KEY_F1)) DEBUGDRAWCOLLIDERS = !DEBUGDRAWCOLLIDERS;
-
-        BeginDrawing();
-        ClearBackground({SKYBLUE});
-
-        BeginMode2D(camera);
-        DrawWorld(TERRAINATLAS, world);
-        player.Draw();
-        g_slime.Draw();
-        EndMode2D();
-
-        DrawText(TextFormat("Brush: %d/%d | LMB delete, RMB place | F1 to debug collision", brushindex + 1, TILEBRUSHCOUNT), 20, 20, 18, RAYWHITE);
-        DrawFPS(10, 50);
-        EndDrawing();
-    }
-
-    UnloadTexture(ACTORATLAS);
-    UnloadTexture(SLIMEATLAS);
-    UnloadTexture(TERRAINATLAS);
-
-    UnloadImage(__icon__);
-
-    CloseWindow();
+    std::cout << "All movement/system integration tests passed.\n";
     return 0;
 }
