@@ -1,29 +1,14 @@
 #pragma once
 
-#include "BaseComponent.hpp"
-#include "MovementComponent.hpp"
-#include "../../world/World.hpp"
+#include "raylib.h"
 
-class WorldComponent : public BaseComponent {
-    public:
-        WorldComponent(World* world, int radius = 2) : world(world), radius(radius) {}
+struct WorldComponent {
+    WorldComponent(int radius = 2) : radius(radius) {}
 
-        void Init() override {
-            movement = owner->GetComponent<MovementComponent>();
-        }
+    int radius;
 
-        void Update(float delta) override {
-            if (!movement) return;
-
-            int tilex = (int)(movement->position.x / (TILESIZE * RENDERSCALE));
-            int tiley = (int)(movement->position.y / (TILESIZE * RENDERSCALE));
-            ChunkCoord center = world->WorldToChunkCoord(tilex, tiley);
-            world->ActivateChunksAround(center, radius);
-        }
-
-    private:
-        World* world;
-        MovementComponent* movement = nullptr;
-        int radius;
-
+    // Only read when the entity has no MovementComponent — a static area like
+    // a village anchor. If MovementComponent IS present, WorldSystem tracks
+    // that position instead and this is ignored.
+    Vector2 anchor{0, 0};
 };

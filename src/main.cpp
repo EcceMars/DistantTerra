@@ -1,61 +1,94 @@
-#include <cassert>
-#include <cmath>
-#include <iostream>
+#include <algorithm>
+#include <memory>
 
+#include "raylib.h"
+#include "code/GLOBALS.hpp"
+#include "code/stores/SpriteStore.hpp"
+#include "code/world/World.hpp"
 #include "code/ecs/registries/ComponentRegistry.hpp"
-#include "code/ecs/systems/SystemRegistry.hpp"
+#include "code/ecs/registries/SystemRegistry.hpp"
+#include "code/ecs/systems/BehaviorSystem.hpp"
+#include "code/ecs/systems/CommandSystem.hpp"
 #include "code/ecs/systems/MovementSystem.hpp"
+#include "code/ecs/systems/CollisionSystem.hpp"
+#include "code/ecs/systems/AnimationSystem.hpp"
+#include "code/ecs/systems/WorldSystem.hpp"
+#include "code/ecs/systems/RenderSystem.hpp"
+#include "code/resources/AnimationResource.hpp"
+#include "code/ecs/components/behaviors/ControllerBehavior.hpp"
+#include "code/ecs/components/behaviors/WanderBehavior.hpp"
+
+using namespace GLOBALS;
+
+// Both sheets share the same row layout: 0=idle_right, 1=idle_left,
+// 2=walk_right, 3=walk_left. Trailing rows (slime's die animation) are just
+// never referenced by any clip — no need to represent "unused" explicitly.
+void AddDirectionalClips(AnimationLibrary& library, const AnimationResource* atlas) {
+    library.AddClip(MakeRangeClip("idle_right", atlas, 0, atlas->cols - 1));
+    library.AddClip(MakeRangeClip("idle_left",  atlas, atlas->cols, atlas->cols * 2 - 1));
+    library.AddClip(MakeRangeClip("walk_right", atlas, atlas->cols * 2, atlas->cols * 3 - 1));
+    library.AddClip(MakeRangeClip("walk_left",  atlas, atlas->cols * 3, atlas->cols * 4 - 1));
+}
 
 int main() {
+    InitWindow(SCREENWIDTH, SCREENHEIGHT, "Distant: Terra");
+    // icon + resizable flag: yours
+    SetTargetFPS(60);
+
+    World world;
+    SpriteStore spriteresources;
+
+    constexpr int floortiley = WORLDTILEHIGH - 2;
+    for (int tx = -5; tx <= WORLDTILEWIDE + 5; tx++)
+        for (int ty = floortiley; ty < floortiley + 3; ty++)
+            world.GetTile(tx, ty).type = TileType::GRASS;
+
+    AnimationResource iphritatlas(spriteresources, SPRITEPATH + "iphrit.png", 32, 32, 4, 4);
+    AnimationLibrary iphritlibrary;
+    AddDirectionalClips(iphritlibrary, &iphritatlas);
+
+    AnimationResource slimeatlas(spriteresources, SPRITEPATH + "green_slime.png", 16, 16, 4, 6);
+    AnimationLibrary slimelibrary;
+    AddDirectionalClips(slimelibrary, &slimeatlas); // rows 4-5 (die) simply unreferenced
+
     ComponentRegistry registry;
-    SystemRegistry<MovementSystem> systems;
+    SystemRegistry<BehaviorSystem, MovementSystem, CollisionSystem, AnimationSystem, WorldSystem, RenderSystem, CommandSystem> systems{
+        BehaviorSystem{}, MovementSystem{}, CollisionSystem{ &world }, AnimationSystem{}, WorldSystem{ &world }, RenderSystem{}, CommandSystem{}
+    };
+    systems.InitAll();
 
-    // Entity with movement + an agility-boosted health component
-    EntityID hero = registry.CreateEntity();
-    registry.AddComponent<MovementComponent>(hero);
-    HealthComponent* heroHealth = registry.AddComponent<HealthComponent>(hero);
-    heroHealth->AddAttribute(Attributes::AGILITY, 21); // 1 + (21-1)*0.025 = 1.5
+    EntityID player = registry.CreateEntity();
+    MovementComponent* playerMove = registry.AddComponent<MovementComponent>(player);
+    playerMove->position = { SCREENWIDTH * 0.5f, SCREENHEIGHT * 0.25f };
+    registry.AddComponent<ColliderComponent>(player, PLAYERWIDTH, PLAYERHEIGHT);
+    registry.AddComponent<VisualComponent>(player, &iphritatlas);
+    registry.AddComponent<AnimationComponent>(player, &iphritlibrary, "idle_right");
+    registry.AddComponent<WorldComponent>(player, 2);
+    registry.AddComponent<BehaviorComponent>(player)->SetRoot(std::make_unique<ControllerBehavior>());
 
-    // Entity with movement only, no health at all
-    EntityID rock = registry.CreateEntity();
-    registry.AddComponent<MovementComponent>(rock);
+    // Second entity, different atlas, different behavior root — exercises the
+    // same chain (Behavior -> Movement/Collision -> Animation -> Render)
+    // through an entirely independent set of component instances.
+    EntityID slime = registry.CreateEntity();
+    MovementComponent* slimeMove = registry.AddComponent<MovementComponent>(slime);
+    slimeMove->position = { SCREENWIDTH * 0.35f, SCREENHEIGHT * 0.25f };
+    registry.AddComponent<ColliderComponent>(slime, SLIMEWIDTH, SLIMEHEIGHT);
+    registry.AddComponent<VisualComponent>(slime, &slimeatlas);
+    registry.AddComponent<AnimationComponent>(slime, &slimelibrary, "idle_right");
+    registry.AddComponent<BehaviorComponent>(slime)->SetRoot(std::make_unique<WanderBehavior>());
 
-    constexpr float delta = 1.0f / 60.0f;
-    systems.UpdateAll(registry, delta);
+    while (!WindowShouldClose()) {
+        float delta = std::min(GetFrameTime(), DELTALIMIT);
+        systems.UpdateAll(registry, delta);
 
-    // Gravity should have integrated once for BOTH entities, independently
-    MovementComponent* heroMove = registry.GetComponent<MovementComponent>(hero);
-    MovementComponent* rockMove = registry.GetComponent<MovementComponent>(rock);
-    float expectedVelY = GRAVITYBASE * delta;
-    assert(std::abs(heroMove->velocity.y - expectedVelY) < 0.001f);
-    assert(std::abs(rockMove->velocity.y - expectedVelY) < 0.001f);
-    assert(std::abs(heroMove->position.y - expectedVelY * delta) < 0.001f);
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        systems.Get<RenderSystem>().Draw(registry);
+        systems.Get<CollisionSystem>().DrawDebug(registry);
+        EndDrawing();
+    }
 
-    // Cross-component lookup during a ForEach pass, mirroring _get_vitality(uid)
-    // inside _separate(): walk the pool, resolve each slot's live EntityID,
-    // then ask the registry for that same entity's HealthComponent.
-    int checked = 0;
-    registry.ForEach<MovementComponent>([&](uint32_t index, MovementComponent&) {
-        EntityID id = registry.EntityAt(index);
-        float mult = MovementSystem::GetSpeedMultiplier(registry, id);
-        if (id == hero) assert(std::abs(mult - 1.5f) < 0.001f);
-        if (id == rock) assert(std::abs(mult - 1.0f) < 0.001f); // no HealthComponent -> neutral
-        checked++;
-    });
-    assert(checked == 2);
-
-    // Generation safety: destroy hero, recreate on the same slot without health,
-    // and make sure the OLD handle can't pull the new entity's (lack of) data.
-    EntityID staleHero = hero;
-    registry.DestroyEntity(hero);
-    EntityID impostor = registry.CreateEntity();
-    registry.AddComponent<MovementComponent>(impostor);
-    assert(impostor.index == staleHero.index);       // slot reused
-    assert(impostor.generation != staleHero.generation);
-
-    float staleMult = MovementSystem::GetSpeedMultiplier(registry, staleHero);
-    assert(staleMult == 1.0f); // stale handle resolves to nothing, not to impostor's data
-
-    std::cout << "All movement/system integration tests passed.\n";
+    spriteresources.UnloadAll();
+    CloseWindow();
     return 0;
 }

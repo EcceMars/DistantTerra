@@ -1,11 +1,14 @@
 #pragma once
 
 #include "BehaviorStatus.hpp"
+#include "../../entities/EntityID.hpp"
 
-class Entity;
+class ComponentRegistry;
+class CommandSystem;
 
 class BehaviorNode {
     public:
         virtual ~BehaviorNode() = default;
-        virtual Status Tick(float delta, Entity* owner) = 0;
+        virtual Status Tick(float delta, EntityID id, ComponentRegistry& registry, CommandSystem& actions) = 0;
+        virtual void Reset() {}
 };

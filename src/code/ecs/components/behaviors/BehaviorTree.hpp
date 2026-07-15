@@ -13,19 +13,23 @@ class SelectorNode : public BehaviorNode {
             return *this;
         }
 
-        Status Tick(float delta, Entity* owner) override {
+        Status Tick(float delta, EntityID id, ComponentRegistry& registry) override {
             for (auto& child : children) {
-                Status status = child->Tick(delta, owner);
+                Status status = child->Tick(delta, id, registry);
                 if (status != Status::FAILURE) return status;
             }
             return Status::FAILURE;
+        }
+
+        void Reset() override {
+            for (auto& child : children) child->Reset();
         }
 
     private:
         std::vector<std::unique_ptr<BehaviorNode>> children;
 };
 
-// Checks a sequence of behaviors and fails at the first Stauts::FAILURE, otherwise returns Status::SUCCESS
+// Checks a sequence of behaviors and fails at the first Status::FAILURE, otherwise returns Status::SUCCESS
 class SequenceNode : public BehaviorNode {
     public:
         SequenceNode& AddChild(std::unique_ptr<BehaviorNode> child) {
@@ -33,12 +37,16 @@ class SequenceNode : public BehaviorNode {
             return *this;
         }
 
-        Status Tick(float delta, Entity* owner) override {
+        Status Tick(float delta, EntityID id, ComponentRegistry& registry) override {
             for (auto& child : children) {
-                Status status = child->Tick(delta, owner);
+                Status status = child->Tick(delta, id, registry);
                 if (status != Status::SUCCESS) return status;
             }
             return Status::SUCCESS;
+        }
+
+        void Reset() override {
+            for (auto& child : children) child->Reset();
         }
 
     private:

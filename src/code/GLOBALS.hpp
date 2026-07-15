@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace GLOBALS {
     constexpr int TILESIZE = 16;
 
@@ -21,6 +23,8 @@ namespace GLOBALS {
     constexpr float MOVESPEED = 200.0f;
     constexpr float FRICTION = 800.0f;
 
+    constexpr float WAYPOINTARRIVALRADIUS = 4.0f;
+
     constexpr float PLAYERWIDTH = 18;
     constexpr float PLAYERHEIGHT = 24;
 
@@ -30,4 +34,8 @@ namespace GLOBALS {
     constexpr float SLIMEHEIGHT = 8;
 
     inline bool DEBUGDRAWCOLLIDERS = true;
+
+    inline const std::string SPRITEPATH = "src/assets/images/actors/";
 }
+
+using namespace GLOBALS;

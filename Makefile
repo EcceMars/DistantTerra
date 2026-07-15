@@ -112,7 +112,7 @@ ifeq ($(PLATFORM),PLATFORM_DESKTOP)
         MAKE = make
     endif
 endif
-CFLAGS += -Wall -std=c++17 -D_DEFAULT_SOURCE -Wno-missing-braces
+CFLAGS += -Wall -std=c++20 -D_DEFAULT_SOURCE -Wno-missing-braces
 ifeq ($(BUILD_MODE),DEBUG)
     CFLAGS += -g -O0
 else

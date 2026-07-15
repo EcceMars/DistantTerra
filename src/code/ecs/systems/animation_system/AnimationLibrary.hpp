@@ -24,13 +24,3 @@ class AnimationLibrary {
     private:
         std::unordered_map<std::string, AnimationClip> clips;
 };
-
-inline AnimationClip MakeRowClip(std::string name, int row, int colStart, int colEnd,
-                                  bool loop = true, bool interruptible = true) {
-    AnimationClip clip;
-    clip.name = std::move(name);
-    clip.loop = loop;
-    clip.interruptible = interruptible;
-    for (int c = colStart; c <= colEnd; c++) clip.frames.push_back({c, row});
-    return clip;
-}
